@@ -1,0 +1,7 @@
+Pe=10, D=0.01, MM=128
+Lax-Wendroff    1.2243e-04
+Upwind          2.4362e-02
+Minmod          1.5159e-04
+Superbee        1.4859e-04
+MC              3.4519e-05  
+

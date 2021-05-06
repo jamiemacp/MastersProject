@@ -1,0 +1,156 @@
+%Dat.m
+
+MM=64;
+tend=100.0;
+dtout=tend;
+Nend=1000;
+factor=1.0;
+D=0.1;
+a=0.0;
+b=1.0;
+t0=0.0;
+%nu Values to test: nu = 0.0,  0.00003,  0.001,  0.01, 0.1
+nu=0.1;
+%Nsts Values to test: Nsts = 1,2,10,20,50
+Nsts=50;
+TOL=1.0e-03;
+nstepsEuler=81920;
+====================================================================
+%STS_diff
+
+Dat; 
+%fid=fopen('Diff_STS_plot.txt','wt');
+tab=fopen('Table.txt','at');
+dx=1/MM;
+M=(b-a)*MM;
+[x]=MESH(a,b,M,dx);
+dtEXPL=dx*dx/(2*D);
+dt=factor*dtEXPL;
+[TAU,durSTS]=STS(dtEXPL,nu,Nsts);
+Nend=round((tend-t0)/durSTS)+1;
+[U]=INIT(x,D,M);
+nSupSteps=0;
+nsteps=0;
+time=0.0;
+tout=max(dtout,dt);
+[ERR,uEXACT]=COMPARE(x,D,time,M,U);
+%OUTPUT(uEXACT,x,U,time,nSupSteps,M,fid);
+for nSupSteps=1:Nend
+    for j=1:Nsts
+        dt=TAU(j);
+        nsteps=nsteps+1;
+        [U,time]=EULER(U,dx,D,M,b,time,dt);
+    end
+        
+    if time>=tout
+        [ERR,uEXACT]=COMPARE(x,D,time,M,U);
+    %    OUTPUT(uEXACT,x,U,time,nSupSteps,M,fid);
+        tout=tout+dtout;
+    end
+    if time>=tend
+        fprintf('Done, at time= %e, nsteps=%d and TotSteps=%d \n',time,nsteps,TotSteps);
+        fprintf('max error = %e\n',ERR);
+        break
+    end
+end
+%fclose(fid)
+
+if ERR<=TOL
+    speedup=nstepsEuler/nsteps;
+else
+    speedup=0;
+end
+
+%printing Nsts   nu    nSupSteps   nsteps    ERRmax   Speedup
+fprintf(tab,'%d    %f   %d   %d   %f     %6.2f \n',Nsts, nu, nSupSteps, nsteps, ERR, speedup);
+fclose(tab);
+================================================================================================
+%SUPER_TIME_STEP
+function [TAU,durSTS]=STS(dtEXPL,nu,Nsts)
+Pi2=2*atan(1.0);
+durSTS=0.0;
+for j=1:Nsts
+    %Large to small
+    supi=(2*j-1.0)/Nsts;
+    %Small to large (uncomment next line)
+    %supi = 2.0 - supi
+    super=(nu-1.0)*cos(supi*Pi2)+nu+1.0;
+    TAU(j)=dtEXPL/super;
+    durSTS=durSTS+TAU(j);
+end
+fprintf('Nsts, nu = %d, %e. ==> durSTS= %e \n', Nsts, nu, durSTS);
+end
+====================================================================================================
+%OUTPUT
+function OUTPUT(uEXACT,x,U,time,nSupSteps,M,fid)
+fprintf(fid,'At time: %e, nSupSteps= %d\n\n',time,nSupSteps);
+for i=1:M+2
+   fprintf(fid,'%e, %e, %e\n',x(i),U(i),uEXACT(i));
+end
+fprintf(fid,'\n');
+end
+======================================================================================================
+%COMPARE
+
+function [ERR,uEXACT]=COMPARE(x,D,time,M,U)
+uEXACT(1:M+2)=zeros;
+ERR=0.0;
+for i=1:M+2
+    arg=(0.5)*x(i)/sqrt(D*time);
+    uEXACT(i)=erfc(arg);
+    ERRi=abs(U(i)-uEXACT(i));
+    A=[ERRi, ERR];
+    ERR=max(A);
+end
+end
+=====================================================================================================
+%PDE
+
+function [U]=PDE(U,F,dx,dt,time,D,b,M)
+
+U(1)=1.0;
+for i=2:M+1
+    U(i)=U(i)+dt*(F(i)-F(i+1))/(dx);
+end
+U(M+2)=erfc(b/(2*sqrt(D*time)));
+end
+====================================================================================================
+%MESH
+function [x]=MESH(a,b,M,dx)
+x1=a;
+x2=x1+(dx/2);
+x(1)=x1;
+x(2)=x2;
+for i=3:M+1
+    x(i)=x(2)+(i-2)*dx;
+end
+x(M+2)=b;
+end
+==================================================================================================
+%INIT
+function [U]=INIT(x,D,M)
+for i=1:M+2
+    U(i)=0.0;
+end
+end
+===============================================================================================
+%FLUX
+
+function [F]=FLUX(U,dx,D,M,b,time)
+
+U(1)=1.0;
+U(M+2)=erfc(b/(2*sqrt(D*time)));
+
+F(2)=-D*2*((U(2)-U(1))/(dx));
+for i=3:M+1
+    F(i)=-D*((U(i)-U(i-1))/(dx));
+end
+F(M+2)=-D*2*((U(M+2)-U(M+1))/(dx));
+end
+========================================================================================
+%EULER
+function [U,time]=EULER(U,dx,D,M,b,time,dt)
+time=time+dt;
+[F]=FLUX(U,dx,D,M,b,time);
+[U]=PDE(U,F,dx,dt,time,D,b,M);
+end

@@ -1,0 +1,5 @@
+set title 'D=0.001 A=0.001 Sigma=1.0 Pe=100.0'
+set yrange[0:0.0012]
+set xlabel 'x'
+set ylabel 'u'
+plot 'SystemPe4.txt' using 1:2 index 0 w lines title 'numerical t=0', 'SystemPe4.txt' using 1:3 index 0 w lines title 'exact t=0', 'SystemPe4.txt' using 1:2 index 1 w lines title 'numerical t=25', 'SystemPe4.txt' using 1:3 index 1 w lines title 'exact t=25', 'SystemPe4.txt' using 1:2 index 2 w lines title 'numerical t=50', 'SystemPe4.txt' using 1:3 index 2 w lines title 'exact t=50', 'SystemPe4.txt' using 1:2 index 3 w lines title 'numerical t=75', 'SystemPe4.txt' using 1:3 index 3 w lines title 'exact t=75', 'SystemPe4.txt' using 1:2 index 4 w lines title 'numerical t=100', 'SystemPe4.txt' using 1:3 index 4 w lines title 'exact t=100'

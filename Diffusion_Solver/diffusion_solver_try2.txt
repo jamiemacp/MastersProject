@@ -1,0 +1,149 @@
+1. mm=8 factor=0.98
+Done, at time= 3.062500e+00, nsteps=40.000000
+max error = 1.625596e-02
+
+mm=8 factor=0.90
+Done, at time= 3.023438e+00, nsteps=43.000000
+max error = 4.122302e-03
+
+2. mm=16 factor=0.90
+Done, at time= 3.005859e+00, nsteps=171.000000
+max error = 1.034066e-03
+
+3. mm=32 factor=0.9
+Done, at time= 3.001465e+00, nsteps=683.000000
+max error = 2.585397e-04
+
+mm=32 factor=0.98
+Done, at time= 3.000293e+00, nsteps=627.000000
+max error = 2.929918e-04
+
+mm=64 factor=0.90
+Done, at time= 3.000366e+00, nsteps=2731.000000
+max error = 6.465149e-05
+
+mm=64 factor=0.98
+Done, at time= 3.000293e+00, nsteps=2508.000000
+max error = 7.323165e-05
+
+4. mm=64 factor=1.0
+Done, at time= 3.000488e+00, nsteps=2458.000000
+max error = 8.622022e-03
+
+mm=64 factor=1.01
+Done, at time= 3.000903e+00, nsteps=2434.000000
+max error = 7.425879e+18
+
+mm=64 factor=1.1
+Done, at time= 3.001099e+00, nsteps=2235.000000
+max error = 8.527903e+174
+==================================================================
+%FLUX
+
+function [F]=FLUX(U,dx,D,M,b,time)
+
+U(1)=1.0;
+U(M+2)=erfc(b/(2*sqrt(D*time)));
+
+F(2)=-D*2*((U(2)-U(1))/(dx));
+for i=3:M+1
+    F(i)=-D*((U(i)-U(i-1))/(dx));
+end
+F(M+2)=-D*2*((U(M+2)-U(M+1))/(dx));
+end
+==================================================================
+%PDE
+
+function [U]=PDE(U,F,dx,dt,time,D,b,M)
+
+U(1)=1.0;
+for i=2:M+1
+    U(i)=U(i)+dt*(F(i)-F(i+1))/(dx);
+end
+U(M+2)=erfc(b/(2*sqrt(D*time)));
+end
+===============================================================
+%Dat.m
+
+MM=64;
+tend=3.0;
+dtout=1.0;
+Nend=1000;
+factor=1.1;
+D=0.1;
+a=0.0;
+b=1.0;
+t0=0.0;
+==============================================================
+%James MacPherson
+%3/14/19
+%Lab 7:Explicit Finite Volume Scheme for Diffusion
+
+Dat; 
+fid=fopen('LAB_7.txt','wt'); 
+dx=1/MM;
+M=(b-a)*MM;
+[x]=MESH(a,b,M,dx);
+dtEXPL=dx*dx/(2*D);
+dt=factor*dtEXPL;
+Nend=round((tend-t0)/dt)+1;
+[U]=INIT(x,D,M);
+nsteps=0;
+time=0.0;
+tout=max(dtout,dt);
+[ERR,uEXACT]=COMPARE(x,D,time,M,U);
+OUTPUT(uEXACT,x,U,time,nsteps,M,fid);
+for nsteps=1:Nend
+    [U,time]=EULER(U,dx,D,M,b,time,dt);
+    
+    if time>=tout
+        [ERR,uEXACT]=COMPARE(x,D,time,M,U);
+        OUTPUT(uEXACT,x,U,time,nsteps,M,fid);
+        tout=tout+dtout;
+    end
+    if time>=tend
+        fprintf('Done, at time= %e, nsteps=%f\n',time,nsteps);
+        fprintf('max error = %e\n',ERR);
+        break
+    end
+end
+fclose(fid);
+%fprintf('x, U, uEXACT\n');
+%for i=1:M+2
+%    fprintf('For i=%d: %e, %e, %e\n',i,x(i),U(i),uEXACT(i));
+%end
+==================================================================
+%EULER
+function [U,time]=EULER(U,dx,D,M,b,time,dt)
+time=time+dt;
+[F]=FLUX(U,dx,D,M,b,time);
+[U]=PDE(U,F,dx,dt,time,D,b,M);
+end
+================================================================
+%OUTPUT
+function OUTPUT(uEXACT,x,U,time,nsteps,M,fid)
+fprintf(fid,'At time: %e, nsteps= %d\n\n',time,nsteps);
+for i=1:M+2
+   fprintf(fid,'%e, %e, %e\n',x(i),U(i),uEXACT(i));
+end
+fprintf(fid,'\n');
+end
+===============================================================
+%MESH
+function [x]=MESH(a,b,M,dx)
+x1=a;
+x2=x1+(dx/2);
+x(1)=x1;
+x(2)=x2;
+for i=3:M+1
+    x(i)=x(2)+(i-2)*dx;
+end
+x(M+2)=b;
+end
+==============================================================
+%INIT
+function [U]=INIT(x,D,M)
+for i=1:M+2
+    U(i)=0.0;
+end
+end

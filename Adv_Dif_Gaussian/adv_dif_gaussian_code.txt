@@ -1,0 +1,132 @@
+%dat.m
+MM=32;
+tend=100.0;
+dtout=25;
+Nend=1000;
+factor=1.0;
+D=0.01; %D1
+%D=0.001; %D2
+Pe=1000;
+a=-2.0;
+b=1010.0;
+t0=0.0;
+%M=amplitude
+A=1.0;
+xi0=2.0;
+sigma=D;
+=============================
+%Adv_Dif_Gaussian
+dat;
+V=Pe*D;
+fid=fopen('D1Pe5.txt','wt');
+dx=1/MM;
+M=(b-a)*MM;
+[x]=MESH(a,b,M,dx);
+dtEXPL=1/((V/dx)+(2*D/dx/dx));
+dt=factor*dtEXPL;
+Nend=round((tend-t0)/dt)+100;
+[U]=INIT(x,M,A,xi0,sigma);
+nsteps=0;
+time=0.0;
+%tout=max(dtout,dt);
+tout=dtout;
+[ERR,uEXACT]=COMPARE(x,D,V,time,M,U,A,sigma,xi0);
+OUTPUT(x,U,uEXACT,time,nsteps,M,fid);
+for nsteps=1:Nend
+    [U,time]=EULER(U,dx,D,M,V,A,a,b,time,dt,sigma,xi0);
+    
+    if time>=tout
+        [ERR,uEXACT]=COMPARE(x,D,V,time,M,U,A,sigma,xi0);
+        OUTPUT(x,U,uEXACT,time,nsteps,M,fid);
+        tout=tout+dtout;
+        fprintf('At time= %6.2f, max error = %6.4e \n',time,ERR);
+    end
+    
+    if time>=tend
+        fprintf('Done, at time=%e, nsteps=%d \n', time, nsteps);
+        fprintf('max error = %e\n',ERR);
+        break
+    end
+end
+fclose(fid);
+====================================================================
+%Flux
+function [F,U]=FLUX(U,dx,D,M,V,A,a,b,time,sigma,xi0)
+alpha=sigma+4*D*time;
+
+U(1)=A*sqrt(sigma/alpha)*exp(-(a-V*time-xi0)*(a-V*time-xi0)/sigma);
+U(M+2)=A*sqrt(sigma/alpha)*exp(-(b-V*time-xi0)*(b-V*time-xi0)/sigma);
+
+F(2)=V*U(1)-2*D*(U(2)-(U(1)))/dx;
+for i=3:M+1
+    F(i)=V*U(i-1)-D*((U(i)-U(i-1))/(dx));
+end
+F(M+2)=V*U(M+1)-2*D*(U(M+2)-(U(M+1)))/dx;
+end
+========================================================================
+%EULER
+function [U,time]=EULER(U,dx,D,M,V,A,a,b,time,dt,sigma,xi0)
+time=time+dt;
+[F,U]=FLUX(U,dx,D,M,V,A,a,b,time,sigma,xi0);
+[U]=PDE(U,F,dx,dt,M);
+end
+========================================================================
+%James MacPherson
+%10/16/19
+%PDE
+%Updating our U values for next step
+function [U]=PDE(U,F,dx,dt,M)
+
+for i=2:M+1
+    U(i)=U(i)+dt*(F(i)-F(i+1))/dx;
+end
+
+end
+===========================================================================
+%COMPARE
+
+function [ERR,uEXACT]=COMPARE(x,D,V,time,M,U,A,sigma,xi0)
+%uEXACT(1:M+2)=zeros;
+ERR=0.0;
+
+alpha=sigma+4*D*time;
+
+for i=1:M+2
+    uEXACT(i)=A*sqrt(sigma/alpha)*exp(-(x(i)-V*time-xi0)*(x(i)-V*time-xi0)/alpha);
+    ERRi=abs(uEXACT(i)-U(i));
+    B=[ERRi, ERR];
+    ERR=max(B);
+end
+end
+=====================================================================================
+%INIT
+function [U]=INIT(x,M,A,xi0,sigma)
+for i=1:M+2
+    U(i)=A*exp(-(x(i)-xi0)*(x(i)-xi0)/sigma);
+end
+end
+=====================================================================================
+%OUTPUT
+function OUTPUT(x,U,uEXACT,time,nsteps,M,fid)
+
+fprintf(fid,'#At time: %e, nsteps= %d\n\n\n',time,nsteps);
+for i=1:M+2
+   fprintf(fid,'%e, %e, %e\n',x(i),U(i),uEXACT(i));
+end
+fprintf(fid,'\n\n');
+end
+=======================================================================================
+%James MacPherson
+%10/16/19
+%MESH
+%Creating a mesh for advection-diffusion model
+function [x]=MESH(a,b,M,dx)
+x1=a;
+x2=x1+(dx/2);
+x(1)=x1;
+x(2)=x2;
+for i=3:M+1
+    x(i)=x(2)+(i-2)*dx;
+end
+x(M+2)=b;
+end

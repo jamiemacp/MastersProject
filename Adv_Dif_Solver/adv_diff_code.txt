@@ -1,0 +1,96 @@
+%James MacPherson
+%10/18/19
+%Explicit Finite Volume Scheme for Advection-Diffusion
+%Solver for an Advection-Diffusion Problem with Neumann BC's
+dat;
+fid=fopen('AdvDifPlotDat.txt','wt');
+dx=1/MM;
+M=(b-a)*MM;
+[x]=MESH(a,b,M,dx);
+dtEXPL=1/((V/dx)+(2*D/dx/dx));
+dt=factor*dtEXPL;
+Nend=round((tend-t0)/dt)+1;
+[U]=INIT(x,D,M);
+nsteps=0;
+time=0.0;
+tout=max(dtout,dt);
+for nsteps=1:Nend
+    time=nsteps*dt;
+    [F]=FLUX(U,dx,D,M,V);
+    [U]=PDE(D,V,U,F,dx,dt,M);
+    
+    if time>=tout
+        OUTPUT(x,U,time,nsteps,M,fid);
+    end
+    
+    if time>=tend
+        fprintf('Done, at time=%e, nsteps=%f \n', time, nsteps);
+        break
+    end
+    
+end
+===========================================================================
+%James MacPherson
+%10/18/19
+%dat.m
+%Gives data for our advection diffusion solver
+MM=16;
+tend=4.0;
+dtout=2.0;
+Nend=1000;
+factor=1.0;
+D=0.1;
+a=0.0;
+V=1.0;
+b=10.0;
+t0=0.0;
+==============================================================================
+%James MacPherson
+%10/16/19
+%MESH
+%Creating a mesh for advection-diffusion model
+function [x]=MESH(a,b,M,dx)
+x1=a;
+x2=x1+(dx/2);
+x(1)=x1;
+x(2)=x2;
+for i=3:M+1
+    x(i)=x(2)+(i-2)*dx;
+end
+x(M+2)=b;
+end
+==============================================================================
+%OUTPUT
+function OUTPUT(x,U,time,nsteps,M,fid)
+
+fprintf(fid,'At time: %e, nsteps= %d\n\n',time,nsteps);
+for i=1:M+2
+   fprintf(fid,'%e, %e\n',x(i),U(i));
+end
+fprintf(fid,'\n');
+end
+=================================================================================
+%James MacPherson
+%10/16/19
+%Flux
+%Create the Flux values for model
+function [F]=FLUX(U,dx,D,M,V)
+F(2)=0;
+for i=3:M+1
+    F(i)=V*U(i-1)-D*((U(i)-U(i-1))/(dx));
+end
+F(M+2)=0;
+end
+===================================================================================
+%James MacPherson
+%10/16/19
+%PDE
+%Updating our U values for next step
+function [U]=PDE(D,V,U,F,dx,dt,M)
+U(1)=(F(2)+2*D/dx*U(2))/(V+2*D/dx);
+for i=2:M+1
+    U(i)=U(i)+dt*(F(i)-F(i+1))/(dx);
+end
+U(M+2)=U(M+1)*(V*dx/2/D+1);
+end
+====================================================================================

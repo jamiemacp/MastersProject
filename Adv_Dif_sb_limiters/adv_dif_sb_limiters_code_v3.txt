@@ -1,0 +1,179 @@
+%dat.m
+MM=8192;
+Pe=0.0;
+%V=1.0;
+a=-1.0;
+b=5.0;
+tend=100.0;
+dtout=25;
+%D=1.0e-7;
+%D=0.01; %D1
+D=0.001; %D2
+factor=1.0;
+t0=0.0;
+%A is height of bump at t0
+A=5.0;
+%Bumps are from xi1 & xi2
+xi1=1.0;
+xi2=2.0;
+--------------------------------------------
+%Adv_Dif_Arg
+dat;
+V=Pe*D;
+%Pe=V/D;
+fid=fopen('D2Pe0.txt','wt');
+tab=fopen('TrialTable.txt','at');
+%Tab records   D   Pe   Err@t=25   Err@t=50   Err@t=75
+%Err@t=100   nSteps
+fprintf(tab,'%6.2e   %6.2e    %6.2e    ',D,Pe);
+dx=1/MM;
+M=(b-a)*MM;
+[x]=MESH(a,b,M,dx);
+dtEXPL=1/((V/dx)+(2*D/dx/dx));
+dt=factor*dtEXPL;
+Nend=round((tend-t0)/dt)+1;
+[U]=INIT(x,M,A,xi1,xi2);
+nsteps=0;
+time=t0;
+tout=max(dtout,dt);
+ERR=0.0;
+uEXACT=U;
+OUTPUT(x,U,uEXACT,time,nsteps,M,fid);
+for nsteps=1:Nend
+    time=t0+nsteps*dt;
+    [U]=EULER(U,dx,D,M,V,A,a,b,xi1,xi2,time,dt);
+    
+    if time>=tout
+        [ERRn,uEXACT]=COMPARE(x,D,V,time,M,U,xi1,xi2,A);
+        OUTPUT(x,U,uEXACT,time,nsteps,M,fid);
+        tout=tout+dtout;
+        fprintf('At time= %6.2f, max error = %6.4e \n',time,ERRn);
+        fprintf(tab,'%6.4e    ',ERRn);
+        ERR=max(ERRn,ERR);
+    end
+end
+if time>=tend
+    fprintf('Done, at time=%e, nsteps=%d \n', time, nsteps);
+    fprintf('max error = %e\n',ERR);
+else
+    fprintf('ERROR: time</=tend');
+end
+
+fprintf(tab,'%d\n',nsteps);
+fclose(tab);
+fclose(fid);
+------------------------------------------------------------------
+%Flux
+%Create the Flux values for model
+function [F,U]=FLUX(U,dx,D,M,V,A,a,b,xi1,xi2,time,dt)
+alpha=sqrt(4*D*time);
+beta=V/2*(1-dt/dx*V);
+
+U(1)=A/2*(erf((a-V*time-xi1)/alpha)-erf((a-V*time-xi2)/alpha));
+U(M+2)=A/2*(erf((b-V*time-xi1)/alpha)-erf((b-V*time-xi2)/alpha));
+
+%Choose method of solution or phi: minmod, superbee, VanLeer, MC
+%Upwind phi=0, LW phi=1
+
+F(2)=V*U(1)+beta*(U(2)-U(1))-D*((U(2)-U(1))/(dx/2));
+for i=3:M+1
+%    theta=(U(i)-U(i-1))/(U(i-1)-U(i-2));
+    phi=1;
+    F(i)=V*U(i-1)+beta*(U(i)-U(i-1))*phi-D*((U(i)-U(i-1))/dx);
+end
+
+%theta=(U(M+2)-U(M+1))/(U(M+1)-U(M));
+phi=1; 
+F(M+2)=V*U(M+1)+beta*(U(M+2)-U(M+1))*phi-D*((U(M+2)-U(M+1))/(dx/2));
+end
+------------------------------------------------------------------
+%PDE
+function [U]=PDE(U,F,dx,dt,M)
+
+dtodx=dt/dx;
+
+for i=2:M+1
+    U(i)=U(i)+dtodx*(F(i)-F(i+1));
+end
+
+end
+---------------------------------------------------------------
+%EULER
+function [U]=EULER(U,dx,D,M,V,A,a,b,xi1,xi2,time,dt)
+[F,U]=FLUX(U,dx,D,M,V,A,a,b,xi1,xi2,time,dt);
+[U]=PDE(U,F,dx,dt,M);
+end
+----------------------------------------------------------------
+%COMPARE
+
+function [ERRn,uEXACT]=COMPARE(x,D,V,time,M,U,xi1,xi2,A)
+ERRn=0.0;
+
+alpha=sqrt(4*D*time);
+
+for i=1:M+2
+    arg1=(x(i)-V*time-xi1)/alpha;
+    arg2=(x(i)-V*time-xi2)/alpha;
+    uEXACT(i)=A/2*(erf(arg1)-erf(arg2));
+    ERRi=abs(uEXACT(i)-U(i));
+    ERRn=max(ERRi,ERRn);
+end
+end
+-------------------------------------------------------------
+%OUTPUT
+function OUTPUT(x,U,uEXACT,time,nsteps,M,fid)
+
+fprintf(fid,'#At time: %e, nsteps= %d\n\n\n',time,nsteps);
+for i=1:M+2
+   fprintf(fid,'%e, %e, %e, %e\n',x(i),U(i),uEXACT(i), uEXACT(i)-U(i));
+end
+fprintf(fid,'\n\n');
+end
+--------------------------------------------------------------
+%MESH
+%Creating a mesh for advection-diffusion model
+function [x]=MESH(a,b,M,dx)
+x1=a;
+x2=x1+(dx/2);
+x(1)=x1;
+x(2)=x2;
+for i=3:M+1
+    x(i)=x(2)+(i-2)*dx;
+end
+x(M+2)=b;
+end
+--------------------------------------------------------------
+%INIT
+function [U]=INIT(x,M,A,xi1,xi2)
+U=zeros(1,M+2);
+for i=1:M+2
+    U(i)=0; %Set each initial U-value to 0.0
+    if x(i)>=xi1 && x(i)<=xi2
+        U(i)=A;     %Correct values
+    end
+end
+end
+---------------------------------------------------------------
+function a=minmod(b)
+
+c=min(1,b);
+a=max(0,c);
+
+end
+--------------------------------------------------------------
+function [a]=MC(b)
+
+c=(1+b)/2;
+d=2*b;
+e=min(2,c);
+f=min(e,d);
+a=max(0,f);
+end
+----------------------------------------------------
+function a=VanLeer(b)
+
+c=abs(b);
+d=b+c;
+e=1+c;
+a=d/e;
+end
