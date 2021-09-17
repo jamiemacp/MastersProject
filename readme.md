@@ -6,6 +6,3 @@ that come from using the initial square bump profile.
 
 This current project is a mix of Matlab for computation and
 gnuplot for plotting.
-
-I am planning to create an updated version of this through
-both Matlab and Python.
